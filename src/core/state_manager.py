@@ -14,6 +14,13 @@ class StateManager:
             logger.info(f"Order count incremented. Current count: {self.successful_orders_count}")
             return self.successful_orders_count
 
+    def decrement_order_count(self, count: int) -> int:
+        """Decrement the successful orders count by the specified amount."""
+        with self.lock:
+            self.successful_orders_count = max(0, self.successful_orders_count - count)
+            logger.info(f"Order count decremented by {count}. Current count: {self.successful_orders_count}")
+            return self.successful_orders_count
+
     def reset_order_count(self) -> int:
         """Reset the successful orders count."""
         with self.lock:

@@ -275,3 +275,27 @@ async def reset_order_count(state_manager: StateManager = Depends(get_state_mana
     except Exception as e:
         logger.error(f"Error resetting daily order count: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post(
+    "/cancel_pending_orders",
+    response_model=Dict[str, str | int],
+    summary="Cancel all pending orders",
+    description="Cancels all pending orders and adjusts the daily order count accordingly."
+)
+async def cancel_pending_orders() -> Dict[str, str | int]:
+    """
+    Cancel all pending orders and adjust the daily order count.
+
+    Returns:
+        Dict[str, str | int]: A dictionary containing the status, message, and number of canceled orders.
+
+    Raises:
+        HTTPException: If canceling fails (500).
+    """
+    try:
+        order_manager = OrderManager()
+        response = order_manager.cancel_pending_orders()
+        return response
+    except Exception as e:
+        logger.error(f"Error in cancel_pending_orders API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

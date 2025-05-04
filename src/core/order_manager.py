@@ -133,6 +133,43 @@ class OrderManager:
 
         return combined_list
 
+    def cancel_pending_orders(self, mt5_client: MT5Client = get_mt5_client()) -> Dict[str, str | int]:
+        """Cancel all pending orders and adjust the daily order count."""
+        try:
+            # Get all orders (pending orders)
+            orders = mt5_client.get_orders()
+            if not orders:
+                logger.info("No pending orders to cancel")
+                return {"status": "success", "message": "No pending orders to cancel", "canceled_count": 0}
+
+            canceled_count = 0
+            for order in orders:
+                # Prepare request to cancel the order
+                request = {
+                    "action": mt5.TRADE_ACTION_REMOVE,
+                    "order": order.ticket,
+                }
+                result = mt5.order_send(request)
+                if result.retcode == mt5.TRADE_RETCODE_DONE:
+                    logger.info(f"Pending order {order.ticket} canceled successfully")
+                    canceled_count += 1
+                else:
+                    logger.error(f"Failed to cancel pending order {order.ticket}: {result.comment}")
+
+            # Decrement the order count based on canceled orders
+            if canceled_count > 0:
+                self.state_manager.decrement_order_count(canceled_count)
+                logger.info(f"Canceled {canceled_count} pending orders. New order count: {self.state_manager.successful_orders_count}")
+
+            return {
+                "status": "success",
+                "message": f"Canceled {canceled_count} pending orders",
+                "canceled_count": canceled_count
+            }
+        except Exception as e:
+            logger.error(f"Error canceling pending orders: {str(e)}")
+            return {"status": "error", "message": f"Failed to cancel pending orders: {str(e)}", "canceled_count": 0}
+
     def _determine_order_type(self, position_type: str, current_price: float, entry_price: float) -> Optional[int]:
         """Determine MT5 order type based on position type and prices."""
         try:
