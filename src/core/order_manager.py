@@ -1,19 +1,19 @@
 import MetaTrader5 as mt5
 from typing import Dict, Optional, List
 from src.api.dependencies import get_mt5_client
+from src.core.state_manager import get_state_manager, StateManager
 from src.data.mt5_client import MT5Client
 from src.models.order import OrderRequest
 from src.models.position import Position
 from src.utils.config import MAX_DAILY_ORDERS, MUST_RISK_AMOUNT
 from src.utils.helpers import calculate_pips, get_pip_value
 from src.utils.logger import logger
-from src.core.state_manager import StateManager
 
 class OrderManager:
     def __init__(self):
-        self.state_manager = StateManager()
+        self.state_manager = get_state_manager()
 
-    def place_order(self, order: OrderRequest, mt5_client: MT5Client = get_mt5_client()) -> Dict[str, str]:
+    def place_order(self, order: OrderRequest, mt5_client: MT5Client = get_mt5_client()) -> Dict[str, str | int]:
         """Place a new order in MT5."""
         if self.state_manager.successful_orders_count >= MAX_DAILY_ORDERS:
             logger.warning("Maximum daily orders reached")

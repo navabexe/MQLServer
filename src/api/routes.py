@@ -1,7 +1,9 @@
 from typing import Dict, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import ValidationError
+import MetaTrader5 as mt5
 from src.core.order_manager import OrderManager
+from src.core.state_manager import get_state_manager, StateManager
 from src.core.stop_loss_manager import StopLossManager
 from src.api.dependencies import get_mt5_client
 from src.data.mt5_client import MT5Client
@@ -9,6 +11,8 @@ from src.utils.config import AVAILABLE_SYMBOLS
 from src.models.order import OrderRequest
 from src.models.price import PriceRequest
 from src.models.position import Position
+from src.models.mt5_status import MT5Status
+from src.models.order_response import OrderResponse
 from src.utils.logger import logger
 
 # Initialize the API router with a prefix and tags for better organization
@@ -63,11 +67,11 @@ async def get_price(request: PriceRequest, mt5_client: MT5Client = Depends(get_m
 
 @router.post(
     "/place_order",
-    response_model=Dict[str, str],
+    response_model=OrderResponse,
     summary="Place a new trading order",
     description="Places a new trading order in MetaTrader 5 with the specified parameters."
 )
-async def place_order(order: OrderRequest) -> Dict[str, str]:
+async def place_order(order: OrderRequest) -> OrderResponse:
     """
     Place a new trading order in MetaTrader 5.
 
@@ -75,7 +79,7 @@ async def place_order(order: OrderRequest) -> Dict[str, str]:
         order (OrderRequest): The order details including symbol, entry price, stop loss, etc.
 
     Returns:
-        Dict[str, str]: A dictionary containing the status and message about the order placement.
+        OrderResponse: A dictionary containing the status, message, and order ID.
 
     Raises:
         HTTPException: If validation fails (400) or if order placement fails (400 or 500).
@@ -206,4 +210,68 @@ async def risk_free(ticket_id: int) -> Dict[str, str | int | float]:
         return response
     except Exception as e:
         logger.error(f"Error making position risk-free: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get(
+    "/mt5_status",
+    response_model=MT5Status,
+    summary="Get MetaTrader 5 connection status",
+    description="Returns the current connection status and account information for MetaTrader 5."
+)
+async def mt5_status(mt5_client: MT5Client = Depends(get_mt5_client)) -> MT5Status:
+    """
+    Get the current connection status and account information for MetaTrader 5.
+
+    Args:
+        mt5_client (MT5Client): The MT5Client instance (injected via dependency).
+
+    Returns:
+        MT5Status: A dictionary containing the connection status and account details.
+
+    Raises:
+        HTTPException: If fetching account info fails (500).
+    """
+    try:
+        account_info = mt5.account_info()
+        if not account_info:
+            logger.error("Failed to retrieve MT5 account info")
+            raise HTTPException(status_code=500, detail="Failed to retrieve MT5 account info")
+
+        return MT5Status(
+            connected=mt5_client.connected,
+            login=account_info.login,
+            server=account_info.server,
+            company=account_info.company,
+            balance=account_info.balance,
+            equity=account_info.equity,
+            margin=account_info.margin
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving MT5 status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post(
+    "/reset_order_count",
+    response_model=Dict[str, str],
+    summary="Reset daily order count",
+    description="Resets the daily order count to allow placing new orders."
+)
+async def reset_order_count(state_manager: StateManager = Depends(get_state_manager)) -> Dict[str, str]:
+    """
+    Reset the daily order count to allow placing new orders.
+
+    Args:
+        state_manager (StateManager): The StateManager instance (injected via dependency).
+
+    Returns:
+        Dict[str, str]: A dictionary containing the status and message about the reset operation.
+
+    Raises:
+        HTTPException: If resetting fails (500).
+    """
+    try:
+        state_manager.reset_order_count()
+        return {"status": "success", "message": "Daily order count reset successfully"}
+    except Exception as e:
+        logger.error(f"Error resetting daily order count: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

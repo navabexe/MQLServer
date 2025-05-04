@@ -1,6 +1,4 @@
 from pydantic import BaseModel, field_validator
-from src.utils.config import AVAILABLE_SYMBOLS
-from typing import Literal
 
 class OrderRequest(BaseModel):
     symbol: str
@@ -12,6 +10,7 @@ class OrderRequest(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, value: str) -> str:
+        from src.utils.config import AVAILABLE_SYMBOLS
         if value not in AVAILABLE_SYMBOLS:
             raise ValueError(f"Symbol {value} is not in available symbols")
         return value

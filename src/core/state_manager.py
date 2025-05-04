@@ -25,3 +25,13 @@ class StateManager:
     def orders_remaining(self) -> int:
         """Get the number of remaining orders for the day."""
         return MAX_DAILY_ORDERS - self.successful_orders_count
+
+# Global StateManager instance
+_state_manager = None
+
+def get_state_manager() -> StateManager:
+    """Get the global StateManager instance."""
+    global _state_manager
+    if _state_manager is None:
+        _state_manager = StateManager()
+    return _state_manager

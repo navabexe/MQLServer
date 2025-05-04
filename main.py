@@ -6,6 +6,7 @@ from src.utils.scheduler import start_scheduler
 from src.utils.logger import logger
 from src.api.dependencies import get_mt5_client
 import threading
+import MetaTrader5 as mt5
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,6 +15,21 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize MT5 connection
         mt5_client = get_mt5_client()
+
+        # Log MT5 connection details
+        account_info = mt5.account_info()
+        if account_info:
+            logger.info("MT5 Connection Details", extra={
+                "login": account_info.login,
+                "server": account_info.server,
+                "company": account_info.company,
+                "balance": account_info.balance,
+                "equity": account_info.equity,
+                "margin": account_info.margin,
+                "connected": mt5_client.connected
+            })
+        else:
+            logger.error("Failed to retrieve MT5 account info")
 
         # Start scheduler in a separate thread
         scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
@@ -51,7 +67,7 @@ app.add_middleware(
 
 # Register routers
 try:
-    app.include_router(router)  # Prefix already defined in routes.py
+    app.include_router(router)
     logger.info("Successfully included trading routers")
 except Exception as e:
     logger.error(f"Failed to include trading routers: {e}")
