@@ -5,8 +5,8 @@ from src.core.state_manager import get_state_manager, StateManager
 from src.data.mt5_client import MT5Client
 from src.models.order import OrderRequest
 from src.models.position import Position
-from src.utils.config import MAX_DAILY_ORDERS, MUST_RISK_AMOUNT
-from src.utils.helpers import calculate_pips, get_pip_value
+from src.utils.config import MAX_DAILY_ORDERS, MUST_RISK_AMOUNT, COMMENT
+from src.utils.helpers import calculate_pips, get_pip_value, get_conversion_rate
 from src.utils.logger import logger
 
 class OrderManager:
@@ -73,7 +73,7 @@ class OrderManager:
             "tp": take_profit,
             "deviation": 20,
             "magic": 234000,
-            "comment": "propiy",
+            "comment": COMMENT,
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_RETURN,
         }
@@ -157,16 +157,23 @@ class OrderManager:
         pip_value = get_pip_value(symbol)
         pip_difference = abs(entry_price - stop_loss) / pip_value
 
-        # Calculate pip value in USD (simplified, assuming USD as quote currency)
+        # Calculate pip value in USD
         if symbol == "BTCUSD":
             pip_value_usd = pip_value * 1  # Assuming 1 BTC = 1 lot
         elif symbol.endswith("USD"):
             pip_value_usd = pip_value * 100000
         elif symbol.startswith("USD"):
-            pip_value_usd = (pip_value / entry_price) * 100000
+            # For USD-based pairs (e.g., USDJPY), convert quote currency to USD
+            quote_currency = symbol[3:]  # e.g., JPY
+            conversion_rate = get_conversion_rate(quote_currency, "USD")
+            pip_value_usd = (pip_value / entry_price) * 100000 * conversion_rate
         else:
-            # For non-USD pairs, assume conversion rate = 1 (to be improved with API)
-            pip_value_usd = (pip_value / entry_price) * 100000
+            # For non-USD pairs (e.g., EURGBP), convert quote currency to USD
+            base_currency = symbol[:3]  # e.g., EUR
+            quote_currency = symbol[3:]  # e.g., GBP
+            # First convert quote currency to USD
+            quote_to_usd = get_conversion_rate(quote_currency, "USD")
+            pip_value_usd = (pip_value / entry_price) * 100000 * quote_to_usd
 
         lot_size = max_loss_usd / (pip_difference * pip_value_usd)
         lot_size = round(lot_size, 2)

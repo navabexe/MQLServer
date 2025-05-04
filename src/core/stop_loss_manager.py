@@ -7,8 +7,11 @@ from src.utils.helpers import get_pip_value
 from typing import Dict
 
 class StopLossManager:
-    def make_risk_free(self, ticket_id: int, mt5_client: MT5Client = get_mt5_client()) -> Dict[str, str]:
-        """Set stop loss to entry price to make the position risk-free."""
+    def __init__(self):
+        self.in_memory_risk = {}
+
+    def make_risk_free(self, ticket_id: int, mt5_client: MT5Client = get_mt5_client()) -> Dict[str, str | int | float]:
+        """Set stop loss to entry price to make the position risk-free, and adjust further if already risk-free."""
         positions = mt5_client.get_positions()
         position = next((p for p in positions if p.ticket == ticket_id), None)
         if not position:
@@ -20,11 +23,10 @@ class StopLossManager:
         current_price = position.price_current
         position_type = position.type
         pip_value = get_pip_value(position.symbol)
-        pip_movement = 10 * pip_value  # Move stop loss by 10 pips
+        pip_movement = 10 * pip_value  # Default movement in pips
 
         # Store initial risk if not already stored
-        in_memory_risk = {}
-        if ticket_id not in in_memory_risk:
+        if ticket_id not in self.in_memory_risk:
             if stop_loss == 0:
                 if position_type == mt5.ORDER_TYPE_BUY and current_price > entry_price:
                     stop_loss = entry_price
@@ -36,27 +38,36 @@ class StopLossManager:
                         "status": "error",
                         "message": f"Position is not in profit for ticket ID {ticket_id}. Stop loss not adjusted."
                     }
-            in_memory_risk[ticket_id] = abs(entry_price - stop_loss)
+            self.in_memory_risk[ticket_id] = abs(entry_price - stop_loss)
 
-        risk_amount = in_memory_risk.get(ticket_id, pip_movement)
+        risk_amount = self.in_memory_risk.get(ticket_id, pip_movement)
 
         # Calculate new stop loss
         if position_type == mt5.ORDER_TYPE_BUY:
-            new_stop_loss = stop_loss + risk_amount
-            if new_stop_loss >= current_price:
-                logger.error(f"New stop loss {new_stop_loss} cannot exceed current price {current_price}")
-                return {
-                    "status": "error",
-                    "message": f"New stop loss {new_stop_loss} cannot exceed current price {current_price}"
-                }
+            # If stop loss is already at or above entry price, move it further towards profit
+            if stop_loss >= entry_price:
+                new_stop_loss = stop_loss + risk_amount
+            else:
+                new_stop_loss = entry_price  # First time making risk-free
+
+            # Ensure new stop loss doesn't exceed a safe threshold below current price
+            safe_threshold = current_price - (pip_value * 5)  # 5 pips below current price
+            if new_stop_loss >= safe_threshold:
+                logger.warning(f"New stop loss {new_stop_loss} too close to current price {current_price}, setting to safe threshold")
+                new_stop_loss = safe_threshold
+
         elif position_type == mt5.ORDER_TYPE_SELL:
-            new_stop_loss = stop_loss - risk_amount
-            if new_stop_loss <= current_price:
-                logger.error(f"New stop loss {new_stop_loss} cannot be below current price {current_price}")
-                return {
-                    "status": "error",
-                    "message": f"New stop loss {new_stop_loss} cannot be below current price {current_price}"
-                }
+            # If stop loss is already at or below entry price, move it further towards profit
+            if stop_loss <= entry_price:
+                new_stop_loss = stop_loss - risk_amount
+            else:
+                new_stop_loss = entry_price  # First time making risk-free
+
+            # Ensure new stop loss doesn't go below a safe threshold above current price
+            safe_threshold = current_price + (pip_value * 5)  # 5 pips above current price
+            if new_stop_loss <= safe_threshold:
+                logger.warning(f"New stop loss {new_stop_loss} too close to current price {current_price}, setting to safe threshold")
+                new_stop_loss = safe_threshold
         else:
             logger.error(f"Invalid position type for ticket ID {ticket_id}")
             return {"status": "error", "message": "Invalid position type"}
