@@ -103,7 +103,7 @@ class OrderManager:
             combined_list.append(Position(
                 ticket=order.ticket,
                 symbol=order.symbol,
-                type=type_map.get(order.type, "Unknown"),
+                type=type_map.get(position.type, "Unknown"),
                 entry_price=order.price_open,
                 stop_loss=order.sl,
                 take_profit=order.tp,
@@ -212,7 +212,7 @@ class OrderManager:
                 else:
                     logger.error(f"Failed to get price info for {quote_currency}USD or USD{quote_currency}")
                     raise ValueError(f"Currency pair {quote_currency}USD or USD{quote_currency} not available in MT5")
-            pip_value_usd = (pip_value / Decimal(str(entry_price))) * Decimal('100000') * quote_to_usd
+            pip_value_usd = pip_value * Decimal('100000') * quote_to_usd
             conversion_info = f"Non-USD pair: base_currency={base_currency}, quote_currency={quote_currency}, quote_to_usd={quote_to_usd}"
 
         # محاسبه حجم اولیه
