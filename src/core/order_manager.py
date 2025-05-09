@@ -182,9 +182,9 @@ class OrderManager:
             conversion_info = "BTCUSD: No conversion needed"
         elif symbol.endswith("USD"):
             if symbol == "XAUUSD":
-                pip_value_usd = pip_value * Decimal('10')  # هر پیپ برای 1 لات = 0.1 دلار
+                pip_value_usd = pip_value * Decimal('100')  # هر پیپ برای 1 لات = 0.1 دلار
             elif symbol == "XAGUSD":
-                pip_value_usd = pip_value * Decimal('50')  # هر پیپ برای 1 لات = 0.05 دلار
+                pip_value_usd = pip_value * Decimal('5000')  # هر پیپ برای 1 لات = 0.05 دلار
             else:
                 pip_value_usd = pip_value * Decimal('100000')  # برای جفت‌ارزهای استاندارد مثل EURUSD
             conversion_info = f"XXXUSD: Standard pip value scaling for {symbol}"
