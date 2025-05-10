@@ -3,14 +3,12 @@ from src.utils.config import ACCOUNTS
 from src.utils.logger import logger
 from typing import Dict, Optional, List, Any
 
-
 class MT5Client:
     def __init__(self, account_type: str = "real"):
         self.account_type = account_type
         self.connected = False
 
     def connect(self) -> bool:
-        """Connect to MetaTrader 5 with the specified account."""
         account = ACCOUNTS.get(self.account_type)
         if not account:
             logger.error(f"Invalid account type: {self.account_type}")
@@ -29,9 +27,15 @@ class MT5Client:
             logger.error(f"MT5 connection error: {e}")
             return False
 
+    def ensure_connection(self) -> bool:
+        """Ensure MT5 connection, reconnect if necessary."""
+        if self.connected:
+            return True
+        logger.warning("MT5 connection lost, attempting to reconnect")
+        return self.connect()
+
     def get_current_price(self, symbol: str) -> Optional[Dict[str, float]]:
-        """Get current bid and ask prices for a symbol."""
-        if not self.connected:
+        if not self.ensure_connection():
             logger.error("MT5 not connected")
             return None
         price_info = mt5.symbol_info_tick(symbol)
@@ -41,8 +45,7 @@ class MT5Client:
         return {"bid": price_info.bid, "ask": price_info.ask}
 
     def place_order(self, order_request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Place an order in MT5."""
-        if not self.connected:
+        if not self.ensure_connection():
             logger.error("MT5 not connected")
             return None
         result = mt5.order_send(order_request)
@@ -55,23 +58,20 @@ class MT5Client:
             return {"status": "error", "message": error_message}
 
     def get_positions(self) -> List[Any]:
-        """Get all open positions."""
-        if not self.connected:
+        if not self.ensure_connection():
             logger.error("MT5 not connected")
             return []
         positions = mt5.positions_get()
         return positions if positions else []
 
     def get_orders(self) -> List[Any]:
-        """Get all pending orders."""
-        if not self.connected:
+        if not self.ensure_connection():
             logger.error("MT5 not connected")
             return []
         orders = mt5.orders_get()
         return orders if orders else []
 
     def switch_account(self, account_type: str) -> Dict[str, str]:
-        """Switch to a different MT5 account."""
         if account_type not in ACCOUNTS:
             logger.error(f"Invalid account type: {account_type}")
             return {"status": "error", "message": "Invalid account type"}
@@ -85,8 +85,7 @@ class MT5Client:
         return {"status": "error", "message": "Failed to connect to new account"}
 
     def modify_order(self, ticket: int, stop_loss: float, take_profit: float) -> bool:
-        """Modify stop loss and take profit for a position."""
-        if not self.connected:
+        if not self.ensure_connection():
             logger.error("MT5 not connected")
             return False
         request = {
@@ -103,13 +102,14 @@ class MT5Client:
         return False
 
     def _translate_error(self, code: int) -> str:
-        """Translate MT5 error code to human-readable message."""
         error_messages = {
             mt5.TRADE_RETCODE_DONE: "Operation completed successfully",
             mt5.TRADE_RETCODE_REJECT: "Order rejected",
+            mt5.TRADE_RETCODE_INVALID_FILL: "Invalid order filling type",
             10014: "Volume value error",
             10015: "Connection error",
             10016: "Network error",
-            10017: "Server access error"
+            10017: "Server access error",
+            10030: "Invalid order filling type"
         }
         return error_messages.get(code, f"Unknown error with code {code}")

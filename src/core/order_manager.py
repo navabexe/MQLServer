@@ -176,17 +176,16 @@ class OrderManager:
             spread_pips = spread_pips.quantize(Decimal('0.01'), rounding=ROUND_DOWN)
             logger.info(f"Spread for {symbol}: {spread_pips} pips")
 
-        # محاسبه ارزش پیپ به USD
         if symbol == "BTCUSD":
             pip_value_usd = pip_value * Decimal('1')
             conversion_info = "BTCUSD: No conversion needed"
         elif symbol.endswith("USD"):
             if symbol == "XAUUSD":
-                pip_value_usd = pip_value * Decimal('100')  # هر پیپ برای 1 لات = 0.1 دلار
+                pip_value_usd = pip_value * Decimal('100')
             elif symbol == "XAGUSD":
-                pip_value_usd = pip_value * Decimal('5000')  # هر پیپ برای 1 لات = 0.05 دلار
+                pip_value_usd = pip_value * Decimal('5000')
             else:
-                pip_value_usd = pip_value * Decimal('100000')  # برای جفت‌ارزهای استاندارد مثل EURUSD
+                pip_value_usd = pip_value * Decimal('100000')
             conversion_info = f"XXXUSD: Standard pip value scaling for {symbol}"
         elif symbol.startswith("USD"):
             quote_currency = symbol[3:]
@@ -237,11 +236,9 @@ class OrderManager:
         lot_size_lower = lot_size_lower.quantize(Decimal('0.001'), rounding=ROUND_DOWN)
         lot_size_upper = min(lot_size_upper.quantize(Decimal('0.001'), rounding=ROUND_DOWN), volume_max)
 
-        # محاسبه ریسک برای هر حجم
         risk_lower = pip_difference * pip_value_usd * lot_size_lower
         risk_upper = pip_difference * pip_value_usd * lot_size_upper
 
-        # انتخاب حجم با ریسک نزدیک‌تر به 30 دلار
         if abs(risk_lower - Decimal(str(max_loss_usd))) <= abs(risk_upper - Decimal(str(max_loss_usd))):
             lot_size = lot_size_lower
             adjusted_risk_usd = risk_lower
@@ -249,8 +246,7 @@ class OrderManager:
             lot_size = lot_size_upper
             adjusted_risk_usd = risk_upper
 
-        # افزودن کمیسیون (اگر وجود دارد)
-        commission_per_lot = Decimal('0.0')  # مقدار کمیسیون به USD برای هر لات (از بروکر خود بگیرید)
+        commission_per_lot = Decimal('0.0')
         total_risk_usd = adjusted_risk_usd + (commission_per_lot * lot_size)
 
         logger.info(
